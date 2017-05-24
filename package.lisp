@@ -7,6 +7,7 @@
   (:export #:turtle
            ;;extrude
            #:forward
+           #:jump
            ;;rotation
            #:roll
            #:pitch

@@ -11,60 +11,81 @@
 (defparameter *index* nil)
 
 (defclass turtle ()
-  ((base :accessor base
-         :initform nil)
-   (points :accessor points
+  ((points :accessor points
            :initform nil)
    (translation :accessor tra
                 :initform (v! 0.0 0.0 0.0 0.0))
    (rotation :accessor rot
-             :initform (v! 0.0 0.0 0.0))
+             :initform (m4:identity))
    (pile :accessor pile
          :initform '())))
 
 ;;; Extrusion
+(defun translation (turtle n)
+  (setf (tra turtle)
+        (v4:+ (v4:*S (m4:get-column (rot turtle) 1) n)
+              (tra turtle))))
+
+(defun extrusion (turtle n)
+  (mapcar #'(lambda (vertex)
+              (add-point
+               (m4:get-column
+                (m4:* (m4:translation (v4:+ (tra turtle) (v4:*S (m4:get-column (rot turtle) 1) n)))
+                      (rot turtle)
+                      (m4:translation (v4:- (aref *vertices* vertex) (tra turtle))))
+                3)))
+          (points turtle)))
+
 (defun forward (turtle n)
-  "Move turtle n units forward"
-  (let* ((translation (v4:+ (tra turtle)
-                            (m4:get-column
-                             (m4:* (m4:rotation-from-euler (rot turtle))
-                                   (m4:translation (v! 0.0 n 0.0)))
-                             3)))
-         (new-points (mapcar #'(lambda (vertex)
-                                 (add-point
-                                  (let ((tra (m4:get-column
-                                              (m4:* (m4:translation translation)
-                                                    (m4:rotation-from-euler (rot turtle))
-                                                    (m4:translation (aref *vertices* vertex)))
-                                              3)))
-                                    (v! (aref tra 0)
-                                        (aref tra 1)
-                                        (aref tra 2)))))
-                             (base turtle))))
+  "Move turtle n units forward and draw"
+  (let ((new-points (extrusion turtle n)))
     (dolist (item (triangulate (points turtle) new-points))
       (push item
             *index*))
     (setf (points turtle)
-          new-points
+          new-points)
+    (translation turtle n)))
 
-          (tra turtle)
-          translation)))
+(defun jump (turtle n)
+  "Move turtle n units forward"
+  (let ((new-points (extrusion turtle n)))
+    (dolist (item new-points)
+      (push item
+            *index*))
+    (setf (points turtle)
+          new-points)
+    (translation turtle n)))
 
 ;;; Rotation
 (defun roll (turtle u)
-  (setf (rot turtle)
-        (v:+ (rot turtle)
-             (v! u 0.0 0.0))))
+  "Rotate in axis j by u angle"
+  (let ((tmp (m4:get-column (m4:identity) 1)))
+    (setf (rot turtle)
+          (m4:* (m4:rotation-from-axis-angle (v! (aref tmp 0)
+                                                 (aref tmp 1)
+                                                 (aref tmp 2))
+                                             u)
+                (rot turtle)))))
 
 (defun pitch (turtle v)
-  (setf (rot turtle)
-        (v:+ (rot turtle)
-             (v! 0.0 v 0.0))))
+  "Rotate in axis k by v angle"
+  (let ((tmp (m4:get-column (m4:identity) 2)))
+    (setf (rot turtle)
+          (m4:* (m4:rotation-from-axis-angle (v! (aref tmp 0)
+                                                 (aref tmp 1)
+                                                 (aref tmp 2))
+                                             v)
+                (rot turtle)))))
 
 (defun yaw (turtle w)
-  (setf (rot turtle)
-        (v:+ (rot turtle)
-             (v! 0.0 0.0 w))))
+  "Rotate in axis i by w angle"
+  (let ((tmp (m4:get-column (m4:identity) 0)))
+    (setf (rot turtle)
+          (m4:* (m4:rotation-from-axis-angle (v! (aref tmp 0)
+                                                 (aref tmp 1)
+                                                 (aref tmp 2))
+                                             w)
+                (rot turtle)))))
 
 ;;; Other
 (defun push-turtle (turtle)
@@ -91,15 +112,13 @@
   (setf (aref *vertices* *i*) point)
   *i*)
 
-(defun circle (turtle n)
+(defun circle (turtle n r)
   (iter (with angle := (/ (* 2 3.1415927) n))
         (for i :from 0 :to n)
-        (for res := (cons (add-point (m3:*v (m3:rotation-y (* i angle))
-                                            (v! 1.0 0.0 0.0)))
+        (for res := (cons (add-point (m4:*v (m4:rotation-y (* i angle))
+                                            (v! r 0.0 0.0)))
                           res))
         (finally (setf (points turtle)
-                       (cons 0 res)
-                       (base turtle)
                        (cons 0 res)))))
 
 (defun triangulate (index0 index1)
@@ -108,12 +127,12 @@
    |/ |
    0__1"
   (iter (with p0 = (first index0))
-	(with p2 = (first index1))
-	(for p1 in (cdr index0))
-	(for p3 in (cdr index1))
-	(nconcing (list p0 p1 p3 p3 p2 p0))
-	(setf p0 p1
-	      p2 p3)))
+        (with p2 = (first index1))
+        (for p1 in (cdr index0))
+        (for p3 in (cdr index1))
+        (nconcing (list p0 p1 p3 p3 p2 p0))
+        (setf p0 p1
+              p2 p3)))
 
 (defun make-geometry (l-system)
   (let ((*i* -1)
@@ -122,7 +141,7 @@
         (turtle (make-instance 'turtle)))
     (iter (for (symbol . parameter) :in l-system)
           (if parameter
-              (funcall symbol turtle (car parameter))
+              (apply symbol turtle parameter)
               (funcall symbol turtle)))
     (values *vertices*
             *index*)))
