@@ -17,6 +17,8 @@
                 :initform (v! 0.0 0.0 0.0 0.0))
    (rotation :accessor rot
              :initform (m4:identity))
+   (radius :accessor r
+           :initform 0.0)
    (pile :accessor pile
          :initform '())))
 
@@ -30,9 +32,13 @@
   (mapcar #'(lambda (vertex)
               (add-point
                (m4:get-column
-                (m4:* (m4:translation (v4:+ (tra turtle) (v4:*S (m4:get-column (rot turtle) 1) n)))
-                      (rot turtle)
-                      (m4:translation (v4:- (aref *vertices* vertex) (tra turtle))))
+                (let* ((x (v4:- (aref *vertices* vertex) (tra turtle)))
+                       (y (v4:*S x (* (r turtle)
+                                      (sqrt (v:dot x x))))))
+                  (m4:* (m4:translation (v4:+ (tra turtle)
+                                              (v4:*S (m4:get-column (rot turtle) 1) n)))
+                        (rot turtle)
+                        (m4:translation (v4:- x y))))
                 3)))
           (points turtle)))
 
@@ -43,7 +49,9 @@
       (push item
             *index*))
     (setf (points turtle)
-          new-points)
+          new-points
+          (r turtle)
+          0.0)
     (translation turtle n)))
 
 (defun jump (turtle n)
@@ -53,7 +61,9 @@
       (push item
             *index*))
     (setf (points turtle)
-          new-points)
+          new-points
+          (r turtle)
+          0.0)
     (translation turtle n)))
 
 ;;; Rotation
@@ -92,7 +102,8 @@
   "Remember the current state of turtle"
   (push (list (copy-list (points turtle))
               (copy-seq (rot turtle))
-              (copy-seq (tra turtle)))
+              (copy-seq (tra turtle))
+              (r turtle))
         (pile turtle)))
 
 (defun pop-turtle (turtle)
@@ -100,7 +111,13 @@
   (let ((pile (pop (pile turtle))))
     (setf (points turtle) (first pile)
           (rot turtle) (second pile)
-          (tra turtle) (third pile))))
+          (tra turtle) (third pile)
+          (r turtle) (fourth pile))))
+
+(defun set-radius (turtle r)
+  "Set how radius need to change."
+  (setf (r turtle)
+        (- 1 r)))
 
 ;;; Geometry
 (defun add-point (point)

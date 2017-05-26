@@ -16,4 +16,5 @@
            #:make-geometry
            #:circle
            #:push-turtle
-           #:pop-turtle))
+           #:pop-turtle
+           #:set-radius))
