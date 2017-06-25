@@ -31,15 +31,13 @@
 (defun extrusion (turtle n)
   (mapcar #'(lambda (vertex)
               (add-point
-               (m4:get-column
-                (let* ((x (v4:- (aref *vertices* vertex) (tra turtle)))
-                       (y (v4:*S x (* (r turtle)
-                                      (sqrt (v:dot x x))))))
-                  (m4:* (m4:translation (v4:+ (tra turtle)
-                                              (v4:*S (m4:get-column (rot turtle) 1) n)))
-                        (rot turtle)
-                        (m4:translation (v4:- x y))))
-                3)))
+               (let* ((x (v4:- (aref *vertices* vertex) (tra turtle))))
+                 (v4:+ (tra turtle)
+                       (v4:*S (m4:get-column (rot turtle) 1) n)
+                       (m4:*v (rot turtle)
+                              (v4:- x
+                                    (v4:*S x (* (r turtle)
+                                                (sqrt (v:dot x x))))))))))
           (points turtle)))
 
 (defun forward (turtle n)
